@@ -1,0 +1,64 @@
+[package]
+name = "minifilter_rs"
+version = "0.1.0"
+edition = "2021"
+build = "build.rs"
+authors = ["Dmytro Maslo <dmytro.maslo@apriorit.com>"]
+description = "Rust minifilter driver"
+readme = "README.md"
+
+[package.metadata.winresource]
+FileDescription = "Filesystem minifilter driver"
+ProductName = "Filesystem filter"
+OriginalFilename = "minifilter_rs.sys"
+CompanyName = "Apriorit Inc."
+
+[package.metadata.wdk.driver-model]
+driver-type = "WDM"
+
+[lib]
+crate-type = ["cdylib"]
+test = false
+
+[features]
+default = []
+nightly = ["wdk-sys/nightly"]
+
+[dependencies]
+bitfield = "0.17"
+const_format = "0.2"
+hashbrown = "0.15"
+kernel-allocator = { git = "https://github.com/krakenaut9/kernel-allocator", branch = "main", version = "0.1" }
+kernel-logger-rs = { git = "https://github.com/krakenaut9/kernel-logger-rs", branch = "main", version = "0.1" }
+kerror = { git = "https://github.com/krakenaut9/kerror", branch = "main", version = "0.1", features = [
+  "nt-string",
+  "hashbrown",
+] }
+log = "0.4"
+nt-string = { git = "https://github.com/krakenaut9/nt-string", branch = "master", version = "0.1", features = [
+  "alloc",
+], default-features = false }
+spin = "0.9"
+wdk-sys = { git = "https://github.com/krakenaut9/windows-drivers-rs", branch = "main", version = "0.5", features = [
+  "minifilter",
+] }
+wdk-panic = { git = "https://github.com/krakenaut9/windows-drivers-rs", branch = "main", version = "0.4" }
+windows-sys = { version = "0.61", features = ["Wdk_System_Threading"] }
+
+[build-dependencies]
+anyhow = "1.0"
+time = { version = "0.3", features = [
+  "formatting",
+  "macros",
+] }
+wdk-build = { git = "https://github.com/krakenaut9/windows-drivers-rs", branch = "main", version = "0.5" }
+winresource = "0.1"
+
+[profile.dev]
+panic = "abort"
+lto = true
+
+[profile.release]
+panic = "abort"
+codegen-units = 1
+lto = true
