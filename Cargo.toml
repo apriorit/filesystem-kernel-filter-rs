@@ -28,7 +28,7 @@ nightly = ["wdk-sys/nightly"]
 bitfield = "0.17"
 const_format = "0.2"
 hashbrown = "0.15"
-kernel-allocator = { git = "https://github.com/krakenaut9/kernel-allocator", branch = "main", version = "0.1" }
+kernel-allocator = { git = "https://github.com/apriorit/kernel-allocator", branch = "main", version = "0.1" }
 kernel-logger-rs = { git = "https://github.com/krakenaut9/kernel-logger-rs", branch = "main", version = "0.1" }
 kerror = { git = "https://github.com/krakenaut9/kerror", branch = "main", version = "0.1", features = [
   "nt-string",
@@ -39,10 +39,10 @@ nt-string = { git = "https://github.com/krakenaut9/nt-string", branch = "master"
   "alloc",
 ], default-features = false }
 spin = "0.9"
-wdk-sys = { git = "https://github.com/krakenaut9/windows-drivers-rs", branch = "main", version = "0.5", features = [
+wdk-sys = { git = "https://github.com/apriorit/windows-drivers-rs", branch = "main", version = "0.5", features = [
   "minifilter",
 ] }
-wdk-panic = { git = "https://github.com/krakenaut9/windows-drivers-rs", branch = "main", version = "0.4" }
+wdk-panic = { git = "https://github.com/apriorit/windows-drivers-rs", branch = "main", version = "0.4" }
 windows-sys = { version = "0.61", features = ["Wdk_System_Threading"] }
 
 [build-dependencies]
@@ -51,7 +51,7 @@ time = { version = "0.3", features = [
   "formatting",
   "macros",
 ] }
-wdk-build = { git = "https://github.com/krakenaut9/windows-drivers-rs", branch = "main", version = "0.5" }
+wdk-build = { git = "https://github.com/apriorit/windows-drivers-rs", branch = "main", version = "0.5" }
 winresource = "0.1"
 
 [profile.dev]
