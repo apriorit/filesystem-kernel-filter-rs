@@ -19,6 +19,7 @@ extern crate wdk_panic;
 
 mod constants;
 mod driver;
+mod err_map;
 mod flt_utils;
 mod kernel_objects;
 mod log_utils;

@@ -10,20 +10,20 @@ use crate::{
     rules_manager::{FileSystemRuleAction, RulesManager},
 };
 use core::ptr::null_mut;
-use kerror::IntoResult;
 use nt_string::unicode_string::NtUnicodeStr;
+use ntresult::IntoResult;
 use wdk_sys::{
     minifilter::{
         FltGetRequestorProcessId, FltRegisterFilter, FltSetCallbackDataDirty, FltStartFiltering,
         FltUnregisterFilter,
     },
+    _FILE_INFORMATION_CLASS::{FileRenameInformation, FileRenameInformationEx},
+    _FLT_PREOP_CALLBACK_STATUS::{FLT_PREOP_COMPLETE, FLT_PREOP_SUCCESS_NO_CALLBACK},
     FILE_INFORMATION_CLASS, FILE_OPEN, FILE_OPEN_IF, FILE_RENAME_INFORMATION, FLT_CALLBACK_DATA,
     FLT_OPERATION_REGISTRATION, FLT_PREOP_CALLBACK_STATUS, FLT_REGISTRATION,
     FLT_REGISTRATION_VERSION, IRP_MJ_CREATE, IRP_MJ_OPERATION_END, IRP_MJ_SET_INFORMATION,
     PCFLT_RELATED_OBJECTS, PDRIVER_OBJECT, PFLT_CALLBACK_DATA, PFLT_FILTER, PVOID,
     STATUS_ACCESS_DENIED,
-    _FILE_INFORMATION_CLASS::{FileRenameInformation, FileRenameInformationEx},
-    _FLT_PREOP_CALLBACK_STATUS::{FLT_PREOP_COMPLETE, FLT_PREOP_SUCCESS_NO_CALLBACK},
 };
 
 /// Callbacks for the [`Minifilter`] registration.
@@ -90,7 +90,7 @@ impl Minifilter {
     }
 
     /// Save the `driver` and register the minifilter using [`Minifilter::register`] function
-    pub fn init(&mut self, driver: PDRIVER_OBJECT) -> kerror::Result<()> {
+    pub fn init(&mut self, driver: PDRIVER_OBJECT) -> ntresult::Result<()> {
         self.driver = driver;
 
         self.register()
@@ -100,7 +100,7 @@ impl Minifilter {
     ///
     /// Calls the [`FltStartFiltering`] with [`Minifilter::handle`] argument previously obtained from the
     /// [`FltRegisterFilter`] function.
-    pub fn start_filtering(&self) -> kerror::Result<()> {
+    pub fn start_filtering(&self) -> ntresult::Result<()> {
         // SAFETY:
         // Inherently unsafe as a system call. The caller ensures that the the `filter` parameter is a valid handle to `FLT_FILTER`
         unsafe { FltStartFiltering(self.handle) }.into_result()
@@ -109,7 +109,7 @@ impl Minifilter {
     /// Register the minifilter in system
     ///
     /// Calls the [`FltRegisterFilter`] function with [`FILTER_REGISTRATION`] settings and obtains the [`PFLT_FILTER`] pointer to the minifilter
-    fn register(&mut self) -> kerror::Result<()> {
+    fn register(&mut self) -> ntresult::Result<()> {
         // SAFETY:
         // Inherently unsafe as a system call. The caller ensures that the the `driver` parameter is a valid pointer to current driver object
         // and `FILTER_REGISTRATION` is properly initialized structure with callbacks

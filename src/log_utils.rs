@@ -1,15 +1,15 @@
 use kernel_logger::kernel_logger::{KernelLogger, KernelLoggerBuilder};
-use kerror::IntoResult;
 use log::Level;
+use ntresult::IntoError;
 use wdk_sys::{
-    ntddk::DbgPrintEx, DPFLTR_ERROR_LEVEL, STATUS_UNSUCCESSFUL, _DPFLTR_TYPE::DPFLTR_IHVDRIVER_ID,
+    ntddk::DbgPrintEx, _DPFLTR_TYPE::DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL, STATUS_UNSUCCESSFUL,
 };
 
 /// Configure and initialize kernel logger
 ///
 /// Configures the [`KernelLogger`] and sets it as a global logger for the crate.
 /// Sets the max log level to [`Level::Info`].
-pub fn setup_logger() -> kerror::Result<()> {
+pub fn setup_logger() -> ntresult::Result<()> {
     let component_id = u32::try_from(DPFLTR_IHVDRIVER_ID)?;
 
     let logger_builder = KernelLoggerBuilder::new()

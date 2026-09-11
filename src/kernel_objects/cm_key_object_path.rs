@@ -1,6 +1,6 @@
 use core::ptr::null;
-use kerror::Error;
 use nt_string::unicode_string::NtUnicodeStr;
+use ntresult::Error;
 use wdk_sys::{
     ntddk::CmCallbackReleaseKeyObjectIDEx, STATUS_OBJECT_NAME_NOT_FOUND, UNICODE_STRING,
 };
@@ -56,7 +56,7 @@ impl<'a> CmKeyObjectPath<'a> {
     ///
     /// - `Ok(NtUnicodeStr)` - Reference to key object path if saved pointer is not null.
     /// - `Err(Error(STATUS_OBJECT_NAME_NOT_FOUND))` - If saved pointer is null.
-    pub fn path(&self) -> kerror::Result<NtUnicodeStr<'_>> {
+    pub fn path(&self) -> ntresult::Result<NtUnicodeStr<'_>> {
         // SAFETY:
         // The caller ensures that `self.0` is a valid pointer to `UNICODE_STRING`
         // and this pointer is not null

@@ -30,14 +30,11 @@ const_format = "0.2"
 hashbrown = "0.15"
 kernel-allocator = { git = "https://github.com/apriorit/kernel-allocator", branch = "main", version = "0.1" }
 kernel-logger = { git = "https://github.com/krakenaut9/kernel-logger", branch = "main", version = "0.2" }
-kerror = { git = "https://github.com/krakenaut9/kerror", branch = "main", version = "0.1", features = [
-  "nt-string",
-  "hashbrown",
-] }
 log = "0.4"
 nt-string = { git = "https://github.com/krakenaut9/nt-string", branch = "master", version = "0.1", features = [
   "alloc",
 ], default-features = false }
+ntresult = { version = "0.1", features = ["alloc", "allocator-api"] }
 spin = "0.9"
 wdk-sys = { git = "https://github.com/apriorit/windows-drivers-rs", branch = "main", version = "0.5", features = [
   "minifilter",

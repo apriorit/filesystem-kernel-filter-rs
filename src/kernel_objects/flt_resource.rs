@@ -1,6 +1,6 @@
 use alloc::boxed::Box;
 use kernel_allocator::kernel_allocator::NonPagedAlloc;
-use kerror::IntoResult;
+use ntresult::IntoResult;
 use wdk_sys::{
     minifilter::{FltAcquireResourceExclusive, FltAcquireResourceShared, FltReleaseResource},
     ntddk::{ExDeleteResourceLite, ExInitializeResourceLite},
@@ -45,7 +45,7 @@ impl FltResource {
     ///
     /// Allocates the [`ERESOURCE_SIZE_X64`] bytes on heap from nonpaged pool
     /// and initializes the [`ERESOURCE`] structure using [`ExInitializeResourceLite`] call.
-    pub fn new() -> kerror::Result<Self> {
+    pub fn new() -> ntresult::Result<Self> {
         // SAFETY:
         // Zero-initialize the ERESOURCE structure before using it.
         // The `EResourceAlias` is an alias type with correct size for the kernel type.

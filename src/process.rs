@@ -1,4 +1,5 @@
 use crate::{
+    err_map::IntoNtResult,
     kernel_objects::{eprocess::EProcess, handle::Handle},
     string_utils::NtStrExt,
 };
@@ -7,17 +8,17 @@ use core::{
     mem::MaybeUninit,
     ptr::{from_mut, null_mut},
 };
-use kerror::{Error, IntoResult};
 use nt_string::{
     nt_unicode_str,
     unicode_string::{NtUnicodeStr, NtUnicodeString},
 };
+use ntresult::{Error, IntoResult};
 use wdk_sys::{
     ntddk::{ObOpenObjectByPointer, PsGetProcessId},
-    GENERIC_ALL, OBJ_KERNEL_HANDLE, PROCESS_BASIC_INFORMATION, STATUS_INFO_LENGTH_MISMATCH,
-    STATUS_UNSUCCESSFUL, UNICODE_STRING,
     _MODE::KernelMode,
     _PROCESSINFOCLASS::{ProcessBasicInformation, ProcessImageFileName},
+    GENERIC_ALL, OBJ_KERNEL_HANDLE, PROCESS_BASIC_INFORMATION, STATUS_INFO_LENGTH_MISMATCH,
+    STATUS_UNSUCCESSFUL, UNICODE_STRING,
 };
 use windows_sys::Wdk::System::Threading::ZwQueryInformationProcess;
 
@@ -40,7 +41,7 @@ impl Process {
     /// Gets a pointer to the `EPROCESS` structure of this process.
     /// And opens a handle to this process for all processes except system process
     /// (pid = 4) because it leads to system freeze.
-    pub fn try_from_pid(pid: u32) -> kerror::Result<Self> {
+    pub fn try_from_pid(pid: u32) -> ntresult::Result<Self> {
         let eprocess = EProcess::from_pid(pid)?;
         let handle = if Self::is_system_process_id(pid) {
             Handle::new()
@@ -54,7 +55,7 @@ impl Process {
     /// Try to open process handle by `eprocess` structure.
     ///
     /// Uses the [`ObOpenObjectByPointer`] call to get a handle.
-    fn open_handle(eprocess: &EProcess) -> kerror::Result<Handle> {
+    fn open_handle(eprocess: &EProcess) -> ntresult::Result<Handle> {
         let mut handle = null_mut();
 
         // SAFETY:
@@ -80,9 +81,9 @@ impl Process {
     ///
     /// This call tries to get a full process image path by querying the process information with
     /// [`ZwQueryInformationProcess`] call and [`ProcessImageFileName`] information class.
-    pub fn path(&self) -> kerror::Result<NtUnicodeString> {
+    pub fn path(&self) -> ntresult::Result<NtUnicodeString> {
         if self.is_system_process() {
-            return Ok(NtUnicodeString::try_from(&SYSTEM_PROCESS_PATH)?);
+            return NtUnicodeString::try_from(&SYSTEM_PROCESS_PATH).into_nt_result();
         }
 
         let mut buffer_size = 0;
@@ -133,7 +134,7 @@ impl Process {
                 )
             };
 
-            Ok(NtUnicodeString::try_from(&process_name)?)
+            Ok(NtUnicodeString::try_from(&process_name).into_nt_result()?)
         } else {
             Err(Error::from_ntstatus(status))
         }
@@ -143,9 +144,9 @@ impl Process {
     ///
     /// Uses the [`Process::path`] call to get the full process image path and returns the part of it
     /// following the last backslash character
-    pub fn name(&self) -> kerror::Result<NtUnicodeString> {
+    pub fn name(&self) -> ntresult::Result<NtUnicodeString> {
         if self.is_system_process() {
-            return Ok(NtUnicodeString::try_from(&SYSTEM_PROCESS_NAME)?);
+            return NtUnicodeString::try_from(&SYSTEM_PROCESS_NAME).into_nt_result();
         }
 
         let path = self.path()?;
@@ -161,7 +162,7 @@ impl Process {
     ///
     /// This function uses the [`ZwQueryInformationProcess`] call with
     /// [`ProcessBasicInformation`] information class to get a result.
-    pub fn basic_info(&self) -> kerror::Result<PROCESS_BASIC_INFORMATION> {
+    pub fn basic_info(&self) -> ntresult::Result<PROCESS_BASIC_INFORMATION> {
         // SAFETY:
         // The caller initializes PROCESS_BASIC_INFORMATION structure with zeros to to
         // avoid using garbage data
@@ -212,7 +213,7 @@ impl Process {
     ///
     /// Reads and returns the [`PROCESS_BASIC_INFORMATION::InheritedFromUniqueProcessId`] field.
     /// Always returns `None` for the system process (pid = 4).
-    pub fn ppid(&self) -> kerror::Result<Option<u32>> {
+    pub fn ppid(&self) -> ntresult::Result<Option<u32>> {
         if self.is_system_process() {
             return Ok(None);
         }

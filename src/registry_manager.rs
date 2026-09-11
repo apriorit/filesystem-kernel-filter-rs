@@ -3,17 +3,17 @@ use crate::{
     rules_manager::RulesManager, string_utils::NtStrExt,
 };
 use core::{ffi::c_void, ptr::null_mut};
-use kerror::IntoResult;
 use nt_string::unicode_string::NtUnicodeStr;
+use ntresult::{IntoError, IntoResult};
 use wdk_sys::{
     ntddk::{CmRegisterCallbackEx, CmUnRegisterCallback},
-    LARGE_INTEGER, NTSTATUS, PDRIVER_OBJECT, PVOID, REG_DELETE_VALUE_KEY_INFORMATION,
-    REG_NOTIFY_CLASS, REG_POST_OPERATION_INFORMATION, REG_RENAME_KEY_INFORMATION,
-    REG_SET_VALUE_KEY_INFORMATION, STATUS_INVALID_PARAMETER, STATUS_SUCCESS, UNICODE_STRING,
     _REG_NOTIFY_CLASS::{
         RegNtPostDeleteKey, RegNtPostDeleteValueKey, RegNtPostRenameKey, RegNtPostSetValueKey,
         RegNtPreRenameKey,
     },
+    LARGE_INTEGER, NTSTATUS, PDRIVER_OBJECT, PVOID, REG_DELETE_VALUE_KEY_INFORMATION,
+    REG_NOTIFY_CLASS, REG_POST_OPERATION_INFORMATION, REG_RENAME_KEY_INFORMATION,
+    REG_SET_VALUE_KEY_INFORMATION, STATUS_INVALID_PARAMETER, STATUS_SUCCESS, UNICODE_STRING,
 };
 
 /// A registry manager that manages all the registry operations on the system.
@@ -50,7 +50,11 @@ impl RegistryManager {
     /// Initialize the registry manager.
     ///
     /// Sets the registry callback function that will monitor registry operations.
-    pub fn init(&mut self, driver: PDRIVER_OBJECT, altitude: &NtUnicodeStr) -> kerror::Result<()> {
+    pub fn init(
+        &mut self,
+        driver: PDRIVER_OBJECT,
+        altitude: &NtUnicodeStr,
+    ) -> ntresult::Result<()> {
         self.set_callback(driver, altitude)
             .inspect_err(|err| log::error!("Failed to set registry callback: {err}"))
     }
@@ -63,7 +67,7 @@ impl RegistryManager {
         &mut self,
         driver: PDRIVER_OBJECT,
         altitude: &NtUnicodeStr,
-    ) -> kerror::Result<()> {
+    ) -> ntresult::Result<()> {
         // SAFETY:
         // Inherently unsafe as a system call, `CmRegisterCallbackEx` registers the
         // `registry_callback` function in system. The caller ensures that the `altitude`
@@ -92,7 +96,7 @@ impl RegistryManager {
     fn post_delete_key(
         cookie: LARGE_INTEGER,
         post_op_info: &REG_POST_OPERATION_INFORMATION,
-    ) -> kerror::Result<()> {
+    ) -> ntresult::Result<()> {
         if post_op_info.Status != STATUS_SUCCESS {
             return Ok(());
         }
@@ -118,7 +122,7 @@ impl RegistryManager {
     fn pre_rename_key(
         cookie: LARGE_INTEGER,
         rename_info: &mut REG_RENAME_KEY_INFORMATION,
-    ) -> kerror::Result<()> {
+    ) -> ntresult::Result<()> {
         let cm_key_object_old_path = full_key_path(cookie, rename_info.Object)?;
 
         rename_info.CallContext = cm_key_object_old_path.leak().cast::<c_void>().cast_mut();
@@ -134,7 +138,7 @@ impl RegistryManager {
     /// [`RulesManager::is_protection_key`] It does nothing if it isn't a protection key.
     /// Then it gets a new key name from the [`REG_RENAME_KEY_INFORMATION::NewName`]
     /// field and notifies the rules manager using the [`RulesManager::rename_key_rules`] call.
-    fn post_rename_key(post_op_info: &REG_POST_OPERATION_INFORMATION) -> kerror::Result<()> {
+    fn post_rename_key(post_op_info: &REG_POST_OPERATION_INFORMATION) -> ntresult::Result<()> {
         let cm_key_object_old_path = CmKeyObjectPath::from(
             post_op_info
                 .CallContext
@@ -181,7 +185,7 @@ impl RegistryManager {
     fn post_delete_value(
         cookie: LARGE_INTEGER,
         post_op_info: &REG_POST_OPERATION_INFORMATION,
-    ) -> kerror::Result<()> {
+    ) -> ntresult::Result<()> {
         if post_op_info.Status != STATUS_SUCCESS {
             return Ok(());
         }
@@ -221,7 +225,7 @@ impl RegistryManager {
     fn post_set_value(
         cookie: LARGE_INTEGER,
         post_op_info: &REG_POST_OPERATION_INFORMATION,
-    ) -> kerror::Result<()> {
+    ) -> ntresult::Result<()> {
         if post_op_info.Status != STATUS_SUCCESS {
             return Ok(());
         }
@@ -275,7 +279,7 @@ impl RegistryManager {
         callback_context: PVOID,
         argument1: PVOID,
         argument2: PVOID,
-    ) -> kerror::Result<()> {
+    ) -> ntresult::Result<()> {
         let operation_type = argument1 as REG_NOTIFY_CLASS;
 
         // SAFETY:

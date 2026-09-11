@@ -1,4 +1,5 @@
 use crate::{
+    err_map::IntoNtResult,
     kernel_objects::{
         cm_key_object_path::CmKeyObjectPath, handle::Handle, object_attributes::ObjectAttributes,
     },
@@ -6,25 +7,25 @@ use crate::{
 };
 use alloc::vec::Vec;
 use core::ptr::null_mut;
-use kerror::IntoResult;
 use nt_string::unicode_string::{NtUnicodeStr, NtUnicodeString};
+use ntresult::{IntoError, IntoResult};
 use wdk_sys::{
     ntddk::{
         CmCallbackGetKeyObjectIDEx, ZwCreateKey, ZwEnumerateKey, ZwEnumerateValueKey, ZwOpenKey,
     },
+    _KEY_INFORMATION_CLASS::KeyBasicInformation,
+    _KEY_VALUE_INFORMATION_CLASS::KeyValueBasicInformation,
     HANDLE, KEY_ALL_ACCESS, KEY_BASIC_INFORMATION, KEY_VALUE_BASIC_INFORMATION, LARGE_INTEGER,
     NTSTATUS, OBJ_CASE_INSENSITIVE, OBJ_KERNEL_HANDLE, PULONG, PUNICODE_STRING, PVOID,
     STATUS_BUFFER_OVERFLOW, STATUS_BUFFER_TOO_SMALL, STATUS_INVALID_PARAMETER,
     STATUS_NO_MORE_ENTRIES, ULONG,
-    _KEY_INFORMATION_CLASS::KeyBasicInformation,
-    _KEY_VALUE_INFORMATION_CLASS::KeyValueBasicInformation,
 };
 
 type EnumFunc<C> = unsafe extern "C" fn(HANDLE, ULONG, C, PVOID, ULONG, PULONG) -> NTSTATUS;
 
 pub trait KeyEnumNamesInfo {
     /// Get the name from the structure describing the registry key
-    fn name(&self) -> kerror::Result<NtUnicodeString>;
+    fn name(&self) -> ntresult::Result<NtUnicodeString>;
 }
 
 impl KeyEnumNamesInfo for KEY_BASIC_INFORMATION {
@@ -32,7 +33,7 @@ impl KeyEnumNamesInfo for KEY_BASIC_INFORMATION {
     ///
     /// Returns an `Err(Error(STATUS_INSUFFICIENT_RESOURCES))` if [`NtUnicodeString`]
     /// allocation fails.
-    fn name(&self) -> kerror::Result<NtUnicodeString> {
+    fn name(&self) -> ntresult::Result<NtUnicodeString> {
         // SAFETY: Raw data used to create a NtUnicodeStr from KEY_BASIC_INFORMATION.
         // The caller ensures that the `Name` and `NameLength` fields of this structure are
         // valid and represent a real UNICODE_STRING
@@ -45,7 +46,7 @@ impl KeyEnumNamesInfo for KEY_BASIC_INFORMATION {
             )
         };
 
-        Ok(NtUnicodeString::try_from(&name)?)
+        NtUnicodeString::try_from(&name).into_nt_result()
     }
 }
 
@@ -54,7 +55,7 @@ impl KeyEnumNamesInfo for KEY_VALUE_BASIC_INFORMATION {
     ///
     /// Returns an `Err(Error(STATUS_INSUFFICIENT_RESOURCES))` if [`NtUnicodeString`]
     /// allocation fails.
-    fn name(&self) -> kerror::Result<NtUnicodeString> {
+    fn name(&self) -> ntresult::Result<NtUnicodeString> {
         // SAFETY: Raw data used to create a NtUnicodeStr from KEY_VALUE_BASIC_INFORMATION.
         // The caller ensures that the `Name` and `NameLength` fields of this structure are
         // valid and represent a real UNICODE_STRING
@@ -67,7 +68,7 @@ impl KeyEnumNamesInfo for KEY_VALUE_BASIC_INFORMATION {
             )
         };
 
-        Ok(NtUnicodeString::try_from(&name)?)
+        NtUnicodeString::try_from(&name).into_nt_result()
     }
 }
 
@@ -121,7 +122,7 @@ impl RegKey {
     ///
     /// Opens the registry key using the [`ZwOpenKey`] call.
     /// Saves the handle on success.
-    pub fn open(&mut self) -> kerror::Result<()> {
+    pub fn open(&mut self) -> ntresult::Result<()> {
         let mut handle = null_mut();
 
         // SAFETY:
@@ -150,7 +151,7 @@ impl RegKey {
     /// Returns an Ok(`REG_CREATED_NEW_KEY`) if it created a new key or
     /// Ok(`REG_OPENED_EXISTING_KEY`) if it opened an existing registry key.
     /// Or returns an Err(NTSTATUS) with appropriate error code in failure.
-    pub fn create(&mut self) -> kerror::Result<u32> {
+    pub fn create(&mut self) -> ntresult::Result<u32> {
         let mut handle = null_mut();
 
         let mut disposition = 0;
@@ -191,7 +192,7 @@ impl RegKey {
         buffer_size: u32,
         information_class: C,
         result_length: &mut u32,
-    ) -> kerror::Result<Option<NtUnicodeString>>
+    ) -> ntresult::Result<Option<NtUnicodeString>>
     where
         I: KeyEnumNamesInfo,
         C: Copy,
@@ -244,7 +245,7 @@ impl RegKey {
         &self,
         enum_func: EnumFunc<C>,
         info_class: C,
-    ) -> kerror::Result<Vec<NtUnicodeString>>
+    ) -> ntresult::Result<Vec<NtUnicodeString>>
     where
         I: KeyEnumNamesInfo,
         C: Copy,
@@ -300,12 +301,12 @@ impl RegKey {
     }
 
     /// Get a `Vec` of registry key subkeys names.
-    pub fn subkeys(&self) -> kerror::Result<Vec<NtUnicodeString>> {
+    pub fn subkeys(&self) -> ntresult::Result<Vec<NtUnicodeString>> {
         self.enumerate_names_impl::<KEY_BASIC_INFORMATION, _>(ZwEnumerateKey, KeyBasicInformation)
     }
 
     /// Get a `Vec` of registry key values names.
-    pub fn value_names(&self) -> kerror::Result<Vec<NtUnicodeString>> {
+    pub fn value_names(&self) -> ntresult::Result<Vec<NtUnicodeString>> {
         self.enumerate_names_impl::<KEY_VALUE_BASIC_INFORMATION, _>(
             ZwEnumerateValueKey,
             KeyValueBasicInformation,
@@ -325,7 +326,7 @@ impl RegKey {
 pub fn full_key_path<'a>(
     mut cookie: LARGE_INTEGER,
     object: PVOID,
-) -> kerror::Result<CmKeyObjectPath<'a>> {
+) -> ntresult::Result<CmKeyObjectPath<'a>> {
     let mut object_name: PUNICODE_STRING = null_mut();
 
     // SAFETY:

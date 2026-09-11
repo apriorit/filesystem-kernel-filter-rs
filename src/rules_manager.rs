@@ -5,6 +5,7 @@ use crate::{
         RULES_REGISTRY_KEY_PATH,
     },
     driver::Driver,
+    err_map::IntoNtResult,
     kernel_objects::flt_resource::FltResource,
     path_utils::dos_path_to_nt,
     registry::RegKey,
@@ -12,11 +13,11 @@ use crate::{
     utils::TryPush,
 };
 use alloc::vec::Vec;
-use kerror::Error;
 use nt_string::{
     nt_unicode_str,
     unicode_string::{NtUnicodeStr, NtUnicodeString},
 };
+use ntresult::Error;
 use wdk_sys::{
     KEY_ENUMERATE_SUB_KEYS, KEY_QUERY_VALUE, STATUS_INVALID_PARAMETER, STATUS_OBJECT_NAME_NOT_FOUND,
 };
@@ -56,7 +57,7 @@ impl TryFrom<&NtUnicodeStr<'_>> for FileSystemRuleAction {
     ///
     /// Returns [`STATUS_INVALID_PARAMETER`] error if `str` parameter is an unknown
     /// rule type string.
-    fn try_from(str: &NtUnicodeStr) -> kerror::Result<Self> {
+    fn try_from(str: &NtUnicodeStr) -> ntresult::Result<Self> {
         if str.equals_no_case(&DENY_RULES_REGISTRY_KEY_NAME) {
             Ok(Self::Deny)
         } else if str.equals_no_case(&READ_ONLY_RULES_REGISTRY_KEY_NAME) {
@@ -73,7 +74,7 @@ impl TryFrom<FileSystemRuleAction> for NtUnicodeStr<'_> {
     /// Try to convert a [`FileSystemRuleAction`] to registry key name.
     ///
     /// Returns [`STATUS_INVALID_PARAMETER`] error if `action` parameter is not a supported rule type
-    fn try_from(action: FileSystemRuleAction) -> kerror::Result<NtUnicodeStr<'static>> {
+    fn try_from(action: FileSystemRuleAction) -> ntresult::Result<NtUnicodeStr<'static>> {
         match action {
             FileSystemRuleAction::Deny => Ok(DENY_RULES_REGISTRY_KEY_NAME),
             FileSystemRuleAction::ReadOnly => Ok(READ_ONLY_RULES_REGISTRY_KEY_NAME),
@@ -100,20 +101,20 @@ fn is_disk_specified(path: &NtUnicodeStr) -> bool {
 /// path to the folder, it adds the `*` symbol to it.
 ///
 /// And converts the `path` to upper case in the end.
-fn prepare_rule_file_path(path: &mut NtUnicodeString) -> kerror::Result<()> {
+fn prepare_rule_file_path(path: &mut NtUnicodeString) -> ntresult::Result<()> {
     if is_disk_specified(path) {
         *path = dos_path_to_nt(path.as_unicode_str())
             .inspect_err(|err| log::error!("Failed to convert dos path\"{path}\" to nt: {err}"))?;
     }
 
     if path.ends_with(&nt_unicode_str!("\\")) {
-        path.try_push('*')?;
+        path.try_push('*').into_nt_result()?;
     }
 
     path.convert_to_upper()
 }
 
-fn prepare_registry_keys() -> kerror::Result<()> {
+fn prepare_registry_keys() -> ntresult::Result<()> {
     RegKey::new()
         .with_path(&FILTER_REGISTRY_KEY_PATH)
         .create()?;
@@ -142,7 +143,7 @@ pub struct RulesManager {
 impl RulesManager {
     /// Create a [`RulesManager`] with empty rules and initialized
     /// locks for each rule type.
-    pub fn new() -> kerror::Result<Self> {
+    pub fn new() -> ntresult::Result<Self> {
         Ok(Self {
             deny_rules: Vec::default(),
             deny_rules_lock: FltResource::new()?,
@@ -156,7 +157,7 @@ impl RulesManager {
     /// Initializes protection rules. If the [`RULES_REGISTRY_PATH`] doesn't exist
     /// it handles the error and returns Ok(()) anyway because it isn't a critical
     /// error and rules can be added later.
-    pub fn init(&mut self) -> kerror::Result<()> {
+    pub fn init(&mut self) -> ntresult::Result<()> {
         if let Err(err) = self.init_rules() {
             if err.ntstatus() == STATUS_OBJECT_NAME_NOT_FOUND {
                 log::info!("Rules manager failed to read rules from the registry, the rules registry key is absent");
@@ -177,7 +178,7 @@ impl RulesManager {
     /// 2) Open each rule type key, get it's subkeys (process names);
     /// 3) Open each process name key, get it's values (file paths);
     /// 4) Add obtained rules to the [`RulesManager`].
-    fn init_rules(&mut self) -> kerror::Result<()> {
+    fn init_rules(&mut self) -> ntresult::Result<()> {
         let mut root_rules_key = RegKey::new()
             .with_path(&RULES_REGISTRY_KEY_PATH)
             .with_access(KEY_ENUMERATE_SUB_KEYS);
@@ -319,7 +320,7 @@ impl RulesManager {
     /// 3) None.
     fn parse_protection_rule_key<'a>(
         key_path: &'a NtUnicodeStr,
-    ) -> kerror::Result<RuleKeyPath<'a>> {
+    ) -> ntresult::Result<RuleKeyPath<'a>> {
         let rules_type_key_path =
             key_path.substr(RULES_REGISTRY_KEY_PATH.len_in_elements().try_into()?)?;
 
@@ -414,8 +415,8 @@ impl RulesManager {
         lock: &mut FltResource,
         old_process_name: &NtUnicodeStr,
         new_process_name: &NtUnicodeStr,
-    ) -> kerror::Result<()> {
-        let mut new_process_name = NtUnicodeString::try_from(new_process_name)?;
+    ) -> ntresult::Result<()> {
+        let mut new_process_name = NtUnicodeString::try_from(new_process_name).into_nt_result()?;
         new_process_name.convert_to_upper()?;
 
         let _lock = lock.acquire_exclusive();
@@ -446,7 +447,7 @@ impl RulesManager {
         rules_type: FileSystemRuleAction,
         old_process_name: &NtUnicodeStr,
         new_process_name: &NtUnicodeStr,
-    ) -> kerror::Result<()> {
+    ) -> ntresult::Result<()> {
         match rules_type {
             FileSystemRuleAction::Deny => Self::rename_process_rules_impl(
                 &mut self.deny_rules,
@@ -528,8 +529,8 @@ impl RulesManager {
         lock: &mut FltResource,
         process_name: &NtUnicodeStr,
         file_path: NtUnicodeString,
-    ) -> kerror::Result<()> {
-        let mut process_name_upcase = NtUnicodeString::try_from(process_name)?;
+    ) -> ntresult::Result<()> {
+        let mut process_name_upcase = NtUnicodeString::try_from(process_name).into_nt_result()?;
         process_name_upcase.convert_to_upper()?;
 
         let _lock = lock.acquire_exclusive();
@@ -561,7 +562,7 @@ impl RulesManager {
         rules_type: FileSystemRuleAction,
         process_name: &NtUnicodeStr,
         file_path: NtUnicodeString,
-    ) -> kerror::Result<()> {
+    ) -> ntresult::Result<()> {
         match rules_type {
             FileSystemRuleAction::Deny => Self::add_file_to_process_rules_impl(
                 &mut self.deny_rules,
@@ -586,7 +587,7 @@ impl RulesManager {
     pub fn rename_key_rules(
         key_path: &NtUnicodeStr,
         new_key_name: &NtUnicodeStr,
-    ) -> kerror::Result<()> {
+    ) -> ntresult::Result<()> {
         log::info!("Rename key: {key_path} to {new_key_name}");
 
         let rules_manager = Self::instance_mut();
@@ -611,7 +612,7 @@ impl RulesManager {
     ///
     /// Parses the key path and deletes the key if the [`RuleKeyPath::rule_type`]
     /// and [`RuleKeyPath::process_name`] aren't `None`.
-    pub fn delete_key_rules(key_path: &NtUnicodeStr) -> kerror::Result<()> {
+    pub fn delete_key_rules(key_path: &NtUnicodeStr) -> ntresult::Result<()> {
         log::info!("Delete key: {key_path}");
 
         let rules_manager = Self::instance_mut();
@@ -642,12 +643,12 @@ impl RulesManager {
     pub fn delete_key_value_rule(
         key_path: &NtUnicodeStr,
         value_name: &NtUnicodeStr,
-    ) -> kerror::Result<()> {
+    ) -> ntresult::Result<()> {
         log::info!("Delete key {key_path} value {value_name}");
 
         let rules_manager = Self::instance_mut();
 
-        let mut file_path = NtUnicodeString::try_from(value_name)?;
+        let mut file_path = NtUnicodeString::try_from(value_name).into_nt_result()?;
         prepare_rule_file_path(&mut file_path)?;
 
         let parsed_key_rule = Self::parse_protection_rule_key(key_path)?;
@@ -675,12 +676,12 @@ impl RulesManager {
     pub fn set_key_value_rule(
         key_path: &NtUnicodeStr,
         value_name: &NtUnicodeStr,
-    ) -> kerror::Result<()> {
+    ) -> ntresult::Result<()> {
         log::info!("Set key {key_path} value {value_name}");
 
         let rules_manager = Self::instance_mut();
 
-        let mut file_path = NtUnicodeString::try_from(value_name)?;
+        let mut file_path = NtUnicodeString::try_from(value_name).into_nt_result()?;
         prepare_rule_file_path(&mut file_path)?;
 
         let parsed_key_rule = Self::parse_protection_rule_key(key_path)?;

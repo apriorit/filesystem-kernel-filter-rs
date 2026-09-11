@@ -1,12 +1,13 @@
 use crate::{
+    err_map::IntoNtResult,
     kernel_objects::{handle::Handle, object_attributes::ObjectAttributes},
     string_utils::NtStrExt,
 };
-use kerror::{Error, IntoResult};
 use nt_string::{
     nt_unicode_str,
     unicode_string::{NtUnicodeStr, NtUnicodeString},
 };
+use ntresult::{Error, IntoError, IntoResult};
 use wdk_sys::{
     ntddk::{ZwOpenSymbolicLinkObject, ZwQuerySymbolicLinkObject},
     GENERIC_READ, OBJ_KERNEL_HANDLE, STATUS_BUFFER_TOO_SMALL,
@@ -22,7 +23,7 @@ const DOS_DRIVE_NAME_LEN: u16 = 2; // C:
 ///
 /// Opens the symbolic link to the disk and gets the target of a symbolic link (nt-style disk name).
 /// For example "C:\" can be converted to "\Device\HarddiskVolume3\".
-pub fn obj_man_dos_drive_to_nt(dos_drive: &NtUnicodeStr) -> kerror::Result<NtUnicodeString> {
+pub fn obj_man_dos_drive_to_nt(dos_drive: &NtUnicodeStr) -> ntresult::Result<NtUnicodeString> {
     let mut attributes = ObjectAttributes::new()
         .with_object_name(dos_drive.as_ptr().cast())
         .with_attributes(OBJ_KERNEL_HANDLE);
@@ -53,7 +54,7 @@ pub fn obj_man_dos_drive_to_nt(dos_drive: &NtUnicodeStr) -> kerror::Result<NtUni
         return Err(Error::from_ntstatus(status));
     }
 
-    nt_drive.try_reserve(size.try_into()?)?;
+    nt_drive.try_reserve(size.try_into()?).into_nt_result()?;
 
     // SAFETY:
     // Inherently unsafe as a system call. The caller ensures that the the `linkhandle` is a valid handle to the `dos_drive`
@@ -70,7 +71,7 @@ pub fn obj_man_dos_drive_to_nt(dos_drive: &NtUnicodeStr) -> kerror::Result<NtUni
 ///
 /// Supports both regular dos-formatted path (e.g. "C:\Path") and object manager dos path (e.g. "\??\C:\Path").
 /// Converts both to the following nt-format - "\Device\HarddiskVolume3\Path".
-pub fn dos_path_to_nt(dos_path: &NtUnicodeStr) -> kerror::Result<NtUnicodeString> {
+pub fn dos_path_to_nt(dos_path: &NtUnicodeStr) -> ntresult::Result<NtUnicodeString> {
     let (mut nt_drive, file_path) = if dos_path.starts_with_no_case(&OBJ_MANAGER_PATH_PREFIX) {
         // \??\C:
         let (obj_man_dos_drive, file_path) = dos_path.split_at(
@@ -83,15 +84,20 @@ pub fn dos_path_to_nt(dos_path: &NtUnicodeStr) -> kerror::Result<NtUnicodeString
     } else {
         // C:
         let (drive, file_path) = dos_path.split_at(DOS_DRIVE_NAME_LEN)?;
-        let mut obj_man_dos_drive = NtUnicodeString::try_from(&OBJ_MANAGER_PATH_PREFIX)?;
-        obj_man_dos_drive.try_push_u16(drive.as_slice())?;
+        let mut obj_man_dos_drive =
+            NtUnicodeString::try_from(&OBJ_MANAGER_PATH_PREFIX).into_nt_result()?;
+        obj_man_dos_drive
+            .try_push_u16(drive.as_slice())
+            .into_nt_result()?;
 
         let nt_drive = obj_man_dos_drive_to_nt(&obj_man_dos_drive)?;
 
         (nt_drive, file_path)
     };
 
-    nt_drive.try_push_u16(file_path.as_slice())?;
+    nt_drive
+        .try_push_u16(file_path.as_slice())
+        .into_nt_result()?;
 
     Ok(nt_drive)
 }

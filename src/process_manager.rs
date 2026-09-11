@@ -1,8 +1,11 @@
-use crate::{driver::Driver, kernel_objects::flt_resource::FltResource, process::Process};
+use crate::{
+    driver::Driver, err_map::IntoNtResult, kernel_objects::flt_resource::FltResource,
+    process::Process,
+};
 use alloc::sync::Arc;
 use hashbrown::HashMap;
-use kerror::IntoResult;
 use nt_string::unicode_string::NtUnicodeString;
+use ntresult::IntoResult;
 use spin::RwLock;
 use wdk_sys::{ntddk::PsSetCreateProcessNotifyRoutine, BOOLEAN, HANDLE};
 
@@ -21,7 +24,7 @@ unsafe impl Sync for ProcessInfo {}
 
 impl ProcessInfo {
     /// Try to create a [`ProcessInfo`] from process identifier.
-    pub fn from_pid(pid: u32) -> kerror::Result<Self> {
+    pub fn from_pid(pid: u32) -> ntresult::Result<Self> {
         let process = Process::try_from_pid(pid)
             .inspect_err(|err| log::trace!("Failed to create Process from pid {pid}: {err}"))?;
 
@@ -90,7 +93,7 @@ impl ProcessManager {
     /// used to synchronize access to this storage.
     ///
     /// Returns an error if [`FltResource`] initialization fails.
-    pub fn new() -> kerror::Result<Self> {
+    pub fn new() -> ntresult::Result<Self> {
         Ok(Self {
             processes: HashMap::default(),
             processes_lock: FltResource::new()?,
@@ -100,7 +103,7 @@ impl ProcessManager {
     /// Initialize the process manager.
     ///
     /// Sets the [`ProcessManager::process_callback`] routine to monitor processes termination.
-    pub fn init() -> kerror::Result<()> {
+    pub fn init() -> ntresult::Result<()> {
         ProcessManager::set_process_callback()
             .inspect_err(|err| log::error!("Failed to set process create callback: {err}"))
     }
@@ -109,7 +112,7 @@ impl ProcessManager {
     /// the [`ProcessManager::process_callback`] callback.
     ///
     /// <https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntddk/nf-ntddk-pssetcreateprocessnotifyroutine>
-    fn set_process_callback() -> kerror::Result<()> {
+    fn set_process_callback() -> ntresult::Result<()> {
         // SAFETY:
         // Inherently unsafe as a system call, `PsSetCreateProcessNotifyRoutine` registers the
         // `process_callback` function in system. The caller ensures that the `notifyroutine`
@@ -144,14 +147,18 @@ impl ProcessManager {
     /// # Notes
     /// When trying to add information about a process whose identifier is already saved,
     /// the process manager logs a warning and does nothing
-    fn add_process(pid: u32, process_info: Arc<ProcessInfo>) -> kerror::Result<()> {
+    fn add_process(pid: u32, process_info: Arc<ProcessInfo>) -> ntresult::Result<()> {
         let process_manager = Self::instance_mut();
 
         let _lock = process_manager.processes_lock.acquire_exclusive();
 
-        process_manager.processes.try_reserve(1).inspect_err(|_| {
-            log::error!("Failed to reserve memory for process info {pid} {process_info}");
-        })?;
+        process_manager
+            .processes
+            .try_reserve(1)
+            .inspect_err(|_| {
+                log::error!("Failed to reserve memory for process info {pid} {process_info}");
+            })
+            .into_nt_result()?;
 
         let _ = process_manager
             .processes
@@ -230,7 +237,7 @@ impl ProcessManager {
     /// If it succeeds it returns an `Arc<ProcessInfo>` pointing to process information.
     /// If the process information is absent it tries to create it via [`ProcessInfo::from_pid`]. And adds
     /// it to the [`ProcessManager`] process info storage.
-    pub fn get_or_add_process_info(pid: u32) -> kerror::Result<Arc<ProcessInfo>> {
+    pub fn get_or_add_process_info(pid: u32) -> ntresult::Result<Arc<ProcessInfo>> {
         if let Some(process_info) = Self::process_info(pid) {
             return Ok(process_info);
         }

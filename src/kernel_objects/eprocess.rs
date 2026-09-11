@@ -1,4 +1,4 @@
-use kerror::IntoResult;
+use ntresult::IntoResult;
 use wdk_sys::{
     ntddk::{ObfDereferenceObject, PsLookupProcessByProcessId},
     HANDLE, PEPROCESS,
@@ -35,7 +35,7 @@ impl EProcess {
     ///
     /// - `Ok(EProcess)` - [`EProcess`] structure which contains pointer to the `EPROCESS` structure.
     /// - `Err(Error(NTSTATUS))` - An error returned from the `PsLookupProcessByProcessId` function if it fails.
-    pub fn from_pid(pid: u32) -> kerror::Result<Self> {
+    pub fn from_pid(pid: u32) -> ntresult::Result<Self> {
         let mut eprocess = PEPROCESS::default();
 
         // SAFETY:

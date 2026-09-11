@@ -1,6 +1,7 @@
+use crate::err_map::IntoNtResult;
 use core::ptr::null_mut;
-use kerror::{Error, IntoResult};
 use nt_string::unicode_string::{NtUnicodeStr, NtUnicodeString};
+use ntresult::{Error, IntoError, IntoResult};
 use wdk_sys::{
     minifilter::{FltGetFileNameInformation, FltReleaseFileNameInformation},
     FLT_FILE_NAME_NORMALIZED, FLT_FILE_NAME_QUERY_DEFAULT, PFLT_CALLBACK_DATA,
@@ -25,7 +26,7 @@ impl TryFrom<PFLT_CALLBACK_DATA> for FileNameInformation {
     /// name options using [`FltGetFileNameInformation`].
     ///
     /// Returns error if [`FltGetFileNameInformation`] call fails.
-    fn try_from(data: PFLT_CALLBACK_DATA) -> kerror::Result<Self> {
+    fn try_from(data: PFLT_CALLBACK_DATA) -> ntresult::Result<Self> {
         let mut file = null_mut();
 
         // SAFETY:
@@ -58,7 +59,7 @@ impl FileNameInformation {
     ///   [`FLT_FILE_NAME_INFORMATION`] is null.
     /// - `Err(Error(STATUS_INSUFFICIENT_RESOURCES))` - If [`NtUnicodeString`]
     ///   allocation fails.
-    pub fn path(&self) -> kerror::Result<NtUnicodeString> {
+    pub fn path(&self) -> ntresult::Result<NtUnicodeString> {
         // SAFETY:
         // The caller ensures that `self.file` is a non-null pointer to FLT_FILE_NAME_INFORMATION
         let name_info = unsafe {
@@ -79,7 +80,7 @@ impl FileNameInformation {
             )
         };
 
-        Ok(NtUnicodeString::try_from(&name)?)
+        NtUnicodeString::try_from(&name).into_nt_result()
     }
 }
 

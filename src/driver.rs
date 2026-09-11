@@ -52,7 +52,11 @@ impl Driver {
     /// # Notes
     /// Don't change the initialization sequence if you don't really need it because some
     /// components depend on other.
-    pub fn init(&mut self, driver: PDRIVER_OBJECT, altitude: &NtUnicodeStr) -> kerror::Result<()> {
+    pub fn init(
+        &mut self,
+        driver: PDRIVER_OBJECT,
+        altitude: &NtUnicodeStr,
+    ) -> ntresult::Result<()> {
         log::info!("Driver started. Build time: {BUILD_TIME}");
 
         self.process_manager = Some(ProcessManager::new()?);

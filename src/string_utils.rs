@@ -1,6 +1,7 @@
+use crate::err_map::IntoNtResult;
 use core::ptr::null_mut;
-use kerror::{Error, IntoResult};
 use nt_string::unicode_string::{NtUnicodeStr, NtUnicodeString};
+use ntresult::{Error, IntoResult};
 use wdk_sys::{
     ntddk::{
         FsRtlIsNameInExpression, RtlCompareUnicodeString, RtlDowncaseUnicodeString,
@@ -112,13 +113,13 @@ fn equals_impl(str1: &NtUnicodeStr, str2: &NtUnicodeStr, case_insensitive: bool)
 #[allow(dead_code)]
 pub trait NtStringConvert {
     /// Convert string to uppercase
-    fn convert_to_upper(&mut self) -> kerror::Result<()>;
+    fn convert_to_upper(&mut self) -> ntresult::Result<()>;
     /// Convert string to lowercase
-    fn convert_to_lower(&mut self) -> kerror::Result<()>;
+    fn convert_to_lower(&mut self) -> ntresult::Result<()>;
 }
 
 impl NtStringConvert for NtUnicodeString {
-    fn convert_to_upper(&mut self) -> kerror::Result<()> {
+    fn convert_to_upper(&mut self) -> ntresult::Result<()> {
         // SAFETY:
         // Inherently unsafe as a system call, `RtlUpcaseUnicodeString`
         // modifies `self` via a mutable pointer. The caller ensures that
@@ -130,7 +131,7 @@ impl NtStringConvert for NtUnicodeString {
         .into_result()
     }
 
-    fn convert_to_lower(&mut self) -> kerror::Result<()> {
+    fn convert_to_lower(&mut self) -> ntresult::Result<()> {
         // SAFETY:
         // Inherently unsafe as a system call, `RtlDowncaseUnicodeString`
         // modifies `self` via a mutable pointer. The caller ensures that
@@ -146,7 +147,7 @@ impl NtStringConvert for NtUnicodeString {
 #[allow(dead_code)]
 pub trait NtStrExt {
     /// Create a [`NtUnicodeStr`] from a raw pointer to the `string` parameter.
-    fn from_native_str<'a>(string: *const UNICODE_STRING) -> kerror::Result<NtUnicodeStr<'a>>;
+    fn from_native_str<'a>(string: *const UNICODE_STRING) -> ntresult::Result<NtUnicodeStr<'a>>;
 
     /// Check if string matches the `regex` parameter.
     fn mathes(&self, regex: &NtUnicodeStr) -> bool;
@@ -175,24 +176,24 @@ pub trait NtStrExt {
     fn last_index_of(&self, ch: u16) -> Option<usize>;
 
     /// Splits the string at the given index and attempts to create an [`NtUnicodeString`] from the second half.
-    fn substring(&self, idx: u16) -> kerror::Result<NtUnicodeString>;
+    fn substring(&self, idx: u16) -> ntresult::Result<NtUnicodeString>;
     /// Returns the second half of the string split at the given index.
-    fn substr(&self, idx: u16) -> kerror::Result<NtUnicodeStr<'_>>;
+    fn substr(&self, idx: u16) -> ntresult::Result<NtUnicodeStr<'_>>;
 
     /// Extracts a slice of the string between the given start and end indices.
     /// Ensures indices are valid and within bounds before extracting the substring.
-    fn slice(&self, idx_start: u16, idx_end: u16) -> kerror::Result<NtUnicodeStr<'_>>;
+    fn slice(&self, idx_start: u16, idx_end: u16) -> ntresult::Result<NtUnicodeStr<'_>>;
 
     /// Splits the string at the specified index and returns the two resulting substrings.
     /// Returns an error if the index is out of bounds.
-    fn split_at(&self, mid: u16) -> kerror::Result<(NtUnicodeStr<'_>, NtUnicodeStr<'_>)>;
+    fn split_at(&self, mid: u16) -> ntresult::Result<(NtUnicodeStr<'_>, NtUnicodeStr<'_>)>;
 }
 
 impl NtStrExt for NtUnicodeStr<'_> {
     /// Create a [`NtUnicodeStr`] from a raw pointer to the `string` parameter.
     ///
     /// Returns an `Err(Error(STATUS_INVALID_PARAMETER))` if `string` is a null pointer.
-    fn from_native_str<'a>(string: *const UNICODE_STRING) -> kerror::Result<NtUnicodeStr<'a>> {
+    fn from_native_str<'a>(string: *const UNICODE_STRING) -> ntresult::Result<NtUnicodeStr<'a>> {
         let str =
             // SAFETY: Get reference from the raw pointer is safe because it's checked to be non-null
             unsafe { string.as_ref() }.ok_or(Error::from_ntstatus(STATUS_INVALID_PARAMETER))?;
@@ -243,17 +244,15 @@ impl NtStrExt for NtUnicodeStr<'_> {
         self.as_slice().iter().rposition(|ch| *ch == ch_to_find)
     }
 
-    fn substring(&self, idx: u16) -> kerror::Result<NtUnicodeString> {
-        Ok(NtUnicodeString::try_from_u16(
-            self.split_at(idx)?.1.as_slice(),
-        )?)
+    fn substring(&self, idx: u16) -> ntresult::Result<NtUnicodeString> {
+        NtUnicodeString::try_from_u16(self.split_at(idx)?.1.as_slice()).into_nt_result()
     }
 
-    fn substr(&self, idx: u16) -> kerror::Result<NtUnicodeStr<'_>> {
+    fn substr(&self, idx: u16) -> ntresult::Result<NtUnicodeStr<'_>> {
         Ok(self.split_at(idx)?.1)
     }
 
-    fn slice(&self, idx_start: u16, idx_end: u16) -> kerror::Result<NtUnicodeStr<'_>> {
+    fn slice(&self, idx_start: u16, idx_end: u16) -> ntresult::Result<NtUnicodeStr<'_>> {
         if idx_start > idx_end {
             return Err(Error::from_ntstatus(STATUS_INFO_LENGTH_MISMATCH));
         }
@@ -276,15 +275,15 @@ impl NtStrExt for NtUnicodeStr<'_> {
         })
     }
 
-    fn split_at(&self, mid: u16) -> kerror::Result<(NtUnicodeStr<'_>, NtUnicodeStr<'_>)> {
+    fn split_at(&self, mid: u16) -> ntresult::Result<(NtUnicodeStr<'_>, NtUnicodeStr<'_>)> {
         if mid > u16::try_from(self.len_in_elements())? {
             return Err(Error::from_ntstatus(STATUS_INFO_LENGTH_MISMATCH));
         }
 
         let parts = self.as_u16str().split_at(mid as _);
 
-        let lpart = NtUnicodeStr::try_from(parts.0)?;
-        let rpart = NtUnicodeStr::try_from(parts.1)?;
+        let lpart = NtUnicodeStr::try_from(parts.0).into_nt_result()?;
+        let rpart = NtUnicodeStr::try_from(parts.1).into_nt_result()?;
 
         Ok((lpart, rpart))
     }

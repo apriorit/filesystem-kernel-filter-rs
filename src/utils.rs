@@ -3,13 +3,13 @@ use core::ops;
 
 pub trait TryPush<T> {
     /// Try to allocate enough space to insert a single element. Return an error if allocation fails
-    fn try_push(&mut self, element: T) -> kerror::Result<()>;
+    fn try_push(&mut self, element: T) -> ntresult::Result<()>;
 }
 
 impl<T> TryPush<T> for Vec<T> {
     /// Reserve space for at least one additional element. Insert the element into the vector.
     /// Return an error if allocation fails
-    fn try_push(&mut self, element: T) -> kerror::Result<()> {
+    fn try_push(&mut self, element: T) -> ntresult::Result<()> {
         self.try_reserve(1)?;
 
         self.push(element);
