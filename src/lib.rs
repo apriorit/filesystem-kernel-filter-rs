@@ -12,7 +12,6 @@
 #![deny(missing_docs)]
 #![deny(unsafe_op_in_unsafe_fn)]
 #![feature(allocator_api)]
-#![feature(ptr_as_ref_unchecked)]
 
 extern crate alloc;
 #[cfg(not(test))]
