@@ -12,5 +12,9 @@ fn main() -> anyhow::Result<()> {
 
     WindowsResource::new().compile()?;
 
+    // The minifilter APIs (Flt*) are exported by fltMgr.lib, which wdk-build
+    // does not emit a link directive for.
+    println!("cargo:rustc-link-lib=static=fltMgr");
+
     Ok(wdk_build::configure_wdk_binary_build()?)
 }
