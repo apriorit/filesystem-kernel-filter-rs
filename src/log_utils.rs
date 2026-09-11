@@ -1,4 +1,4 @@
-use kernel_logger_rs::kernel_logger::{KernelLogger, KernelLoggerBuilder};
+use kernel_logger::kernel_logger::{KernelLogger, KernelLoggerBuilder};
 use kerror::IntoResult;
 use log::Level;
 use wdk_sys::{
